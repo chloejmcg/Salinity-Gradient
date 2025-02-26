@@ -10,6 +10,9 @@ knitr::opts_chunk$set(echo = TRUE,
                       fig.path = "../figures/01_DADA2")
 ```
 
+#Set the Seed
+
+
 
 # Symbolically link data files
 
@@ -31,6 +34,4 @@ We need to have access to our fastq files for our project!
 Output that we need:
 1. ASV count table: `otu_table`
 
-
-
-
+##FILL IN WITH MARS CODE
