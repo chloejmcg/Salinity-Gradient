@@ -1,0 +1,174 @@
+---
+title: "04B_Phylogenetic_Tree_Inspection_Rooted"
+author: "Chloe J McGovern"
+date: "2025-03-19"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Goals
+We want to investigate and root our tree
+
+1. Load the FastTree unrooted
+2. Add the tree to phyloseq object
+3. Visualize and inspect tree with ggtree
+4. Prune ASVs if needed
+5. Root our tree
+6. Combine enwly rooted tree with phyloseq object
+7. Save 2 phyloseq objects
+  -unrooted tree phyloseq object
+  -rooted tree phyloseq object
+  
+# Input
+1. raw_preprocessed_phyloseq.RData
+2. ASVs_unrooted.tree
+3. MAFFT_aligned_ASVs.fasta
+
+# Output
+1. phytree_preprocessed_physeq.RData
+
+```{r set up, include=FALSE}
+knitr::opts_chunk$set(echlo = TRUE,
+                      fig.align = "center",
+                      #Always relevant to the document directory
+                      fig.path = "../figures/04_Phylogenetic_Tree")
+```
+
+# Before you start
+
+## Set seed
+```{r set-seed}
+# any number 
+set.seed(238438)
+```
+
+## Load packages
+```{r load-packages}
+pacman::p_load(tidyverse, phyloseq, ggtree, phytools, tidytree,
+               install=FALSE)
+```
+
+## Load data files
+```{r load-data}
+#load preprocessed phyloseq object
+load("data/03_PreProcessing/raw_preprocessed_physeq.RData")
+raw_preprocessed_physeq
+
+# load in tree
+unrooted_tree <-
+  read.tree("data/04_Phylogenetic_Tree/ASVs_unrooted.tree")
+unrooted_tree
+
+# view structure of unrooted tree
+str(unrooted_tree)
+
+```
+
+## Merge phyloseq object 
+```{r merge-physeq}
+#intuition check
+stopifnot(ntaxa(raw_preprocessed_physeq)==ntaxa(unrooted_tree)) #no news is good news
+
+# merge tree with phyloseq object
+unrooted_physeq <-
+  merge_phyloseq(raw_preprocessed_physeq, unrooted_tree)
+
+unrooted_physeq
+```
+
+## Plot tree with ggtree
+```{r plot-tree-unrooted}
+#make a basic tree
+kingdom_tree <-
+  ggtree(unrooted_physeq) +
+  #color tips by kingdom
+  geom_tippoint(mapping = aes(color = Kingdom)) +
+  # add a title 
+  labs (title = "Unrooted Tree") +
+  #move the legend to the bottom
+  theme(legend.position = "bottom")
+
+kingdom_tree
+
+#view kingdom with labels
+kingdom_node_tree <- 
+  kingdom_tree + 
+  # Add the node label 
+  geom_text(aes(label=node), hjust= -0.5, vjust = -0.3, size = 2)
+
+kingdom_node_tree
+```
+
+## Root tree from archea
+NOTE: got to line 232 if you do not have archea in your dataset #that is me
+```{r root-archea}
+# first find the ASVs that are Archaea
+archaea_node <- tax_table(raw_preprocessed_physeq) %>%
+  as.data.frame() %>%
+  filter(Kingdom == "Archaea") %>%
+  pull(ASV)
+
+# find the node that encompasses all Archaea
+archaea_node <- findMRCA(unrooted_tree, tips = archaea_node, type = "node") # node = 3394
+
+# View clade to check it out
+#viewClade(kingdom_tree, archaea_node)
+viewClade(kingdom_node_tree, 3394)
+
+# check out tree
+node3394 <-
+  ggtree(unrooted_physeq) +
+  geom_tippoint(mapping = aes(color = Kingdom),
+                size = 1.5) +
+  geom_text(aes(label = node), hjust = -0.7, vjust = -0.2, size = 2) +
+  geom_highlight(node = 3394, fill = "dodgerblue")
+
+node3394
+
+# root tree using node 3394
+archaea_root_tree <-
+  ape::root(unrooted_tree, node = archaea_node, resolve.root = TRUE)
+
+# check if rooted
+is.rooted(archaea_root_tree)
+
+# merge with physeq
+archaea_root_physeq <- merge_phyloseq(raw_preprocessed_physeq, archaea_root_tree)
+
+# plot rooted simple tree with no text
+archaea_rooted_simple <- ggtree(archaea_root_physeq) +
+  geom_tippoint(aes(color = Kingdom))  
+
+archaea_rooted_simple
+
+#plot with text
+# Plot rooted tree with text
+archaea_rooted_text <- ggtree(archaea_root_physeq) +
+  geom_tippoint(aes(color = Kingdom)) + 
+  geom_text(aes(label = node), hjust = -0.5, vjust = -0.3, size = 1.5)
+
+archaea_rooted_text
+```
+
+## Evaluate long branches
+This part will get a little manual
+```{r evaluate-archaea-rooted-long-branches}
+#zoom in on node that looks potentially suspicious
+viewClade(archaea_rooted_text + 
+          labs(title = "Archaea Rooted Tree: Node 703"), 
+          node = 703)
+
+# Lets see its ancestors
+ancestor(archaea_root_tree, 703)
+
+# Or if there are two nodes that we can see we can find its MRCA (most recent common ancestor)
+## create tibble of tree to identify offspring
+tree_tib <- as_tibble(archaea_root_physeq@phy_tree)
+
+# lets look at the really long branch with a bunch of NAs
+MRCA(archaea_root_tree, .node1 = 703, .node2 = 702) #3316
+
+viewClade(archaea_rooted_text, 3316)
+```
+
