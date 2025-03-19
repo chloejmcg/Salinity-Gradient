@@ -238,7 +238,7 @@ neg_controlASV_physeq %>%
 # Would only like to keep ASV_17 and ASV_50, everything else is trash
 controlASVs_rm <- dplyr::setdiff(neg_control_ASVs_vec$ASV, c("ASV_0017", "ASV_0050"))
 # double check 
-length(controlASVs_toREMOVE)
+length(controlASVs_rm)
 
 #make new phyloseq object
 noControlsChlorosMitos_physeq <- 
