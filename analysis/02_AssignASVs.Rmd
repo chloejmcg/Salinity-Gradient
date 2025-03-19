@@ -26,7 +26,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       fig.path = "../figures/02_Assign_ASVs/") 
 ```
 
-#Goals
+# Goals
 
 1. Infer errors in the sequences, separately on the forward and reverse reads.
 2. Assign ASVs on both the forward and reverse reads, separately. Apply the error model. 
@@ -37,18 +37,18 @@ knitr::opts_chunk$set(echo = TRUE,
 7. Assign Taxonomy with Silva Database.
 . Write out relevant files: `asv_table` , `asvs_fasta` , and `sample_data` . 
 
-#Input
+# Input
 
 1. Filtered fastq files generated from `01_QualityTrimming.Rmd`
 2. Sample Name vector.
 
-##Output
+## Output
 1. `asv_table`
 2. `asvs_fasta`
 3. `tax_table`
 4. `sample_data`
 
-#Set up the environment
+# Set up the environment
 
 ## Set the seed
 ```{r, set-seed}
@@ -63,7 +63,7 @@ pacman::p_load(tidyverse, devtools, dada2,
 
 ```
 
-#Load filtered Fastq files
+# Load filtered Fastq files
 ```{r load-filtered-fastqs}
 #place filtered fastq files into a variable
 filtered_fastqs_path <- "data/01_DADA2/02_filtered_fastqs"
@@ -89,7 +89,7 @@ filtered_reverse_reads
 
 ```
 
-#Assign sample names
+# Assign sample names
 
 ```{r sample-names}
 # Create vector of sample names from the filenames 
@@ -125,7 +125,7 @@ forward_error_plot + reverse_error_plot
 
 ```
 
-#Infer sequencing reads
+# Infer sequencing reads
 
 ```{r infer-ASVs}
 # Infer ASVs on the forward sequences
@@ -167,7 +167,7 @@ names(merged_ASVs)
 head(merged_ASVs[[3]])
 ```
 
-#Create Raw ASV Count Table
+# Create Raw ASV Count Table
 
 ```{r raw-ASV-count-table}
 raw_ASV_table <- makeSequenceTable(merged_ASVs)
@@ -222,7 +222,7 @@ table(nchar(getSequences(raw_ASV_table_trimmed)))
   
 ```
 
-#Remove Chimeras
+# Remove Chimeras
 
 ```{r remove-chimeras}
 # Remove the chimeras in the raw ASV table
