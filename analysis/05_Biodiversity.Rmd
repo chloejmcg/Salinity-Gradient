@@ -1,0 +1,283 @@
+---
+title: "Biodiversity across a salinity gradient"
+author: "Chloe J McGovern"
+date: "`r Sys.Date()"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.path = "../figures/05_Biodiversity")
+```
+
+# Goals
+
+Run an analysis on the within sample biodiversity of the samples in our project.
+
+1. First calculate the Hill numbers od the samples using the iNEXT package.
+2. Plot and evaluate the interpolated and extrapolated rarefaction curves from iNEXT.
+3. Analyze the hill numbers as it relates to stations and salinity in (PSU).\
+4. Answer the scientific question at hand.
+
+## Inputs
+
+1. `phytree_preprocessed_physeq`
+
+## Outputs
+
+1. Calculated biodiversity measures (Hill numbers) across every sample.
+2. Figures to visualize these changes in biodiversity.
+3. Statistical tests to actually show the canges and patters in biodiversity.
+
+# Set up the environment
+
+## Set the seed
+```{r set-seed}
+set.seed(238428)
+```
+
+## Load packages and colors
+
+```{r load-packages-colors}
+pacman::p_load(tidyverse, devtools, patchwork, iNEXT, phyloseq,
+               install=FALSE)
+
+# load in colors for plotting
+source("code/colors.R")
+
+```
+
+## Load in data
+
+```{r}
+load("data/04_Phylogenetic_Tree/phytree_preprocessed_physeqs.RData")
+
+# take a look
+archaeal_rooted_physeq
+
+# intuition check on seq depth
+min(sample_sums(archaeal_rooted_physeq)) #max, min, medium
+
+# make metadata df
+metadata_df<- archaeal_rooted_physeq %>%
+  sample_data() %>%
+  data.frame()
+
+glimpse(metadata_df)
+```
+
+# Calculate biodiversity with iNEXT
+
+```{r iNEXT-biodiversity}
+# prepare the input data 
+  #species in rows, samples in columns
+
+iNEXT_input_df <-
+  archaeal_rooted_physeq %>%
+  otu_table() %>%
+  data.frame()
+
+# inspect
+dim(iNEXT_input_df)
+iNEXT_input_df[1:5,1:5]
+
+# run iNEXT
+  # remember to set the seed
+  #ASVs in rows, samples in columns
+
+#iNEXT_data <- iNEXT(iNEXT_input_df, 
+#                    q = c(0,1,2),
+#                    datatype = "abundance") #takes a while to run
+
+```
+
+Since iNEXT takes a while ti run, we will load in the data that was calculated before
+
+```{r load-iNEXT-data}
+load("data/05_Biodiversity/iNEXT_data.RData")
+
+# inspect
+str(iNEXT_data)
+typeof(iNEXT_data)
+```
+
+# Plot the rarefaction curves 
+
+```{r iNEXT-colors}
+# Prepare Colors 
+color_df <- 
+  iNEXT_input_df %>%
+  colnames() %>%
+  data.frame()
+# Check
+head(color_df)
+# Rename the column 
+colnames(color_df)[1] <- "names"
+# Check
+head(color_df)
+
+
+# Make a helper dataframe for plotting with colors 
+iNEXT_color_df <- 
+  color_df %>%
+  # Fix the names for merging
+  mutate(names = gsub(names, pattern = "[.]", replace = "-"),
+         names = gsub(names, pattern = "X",  replace = "")) %>%
+  # Merge with metadata
+  left_join(metadata_df, by = "names") %>%
+  # Merge with colors for plotting with ggiNEXT
+  left_join(data.frame(station_colors = station_colors,
+            station = names(station_colors)),
+            by = "station")
+
+head(iNEXT_color_df)
+```
+
+Remember the output of iNEXT
+
+q = 0 richness
+q = 1 shannon
+q = 2 simpson
+
+```{r iNEXT-rarefaction}
+ggiNEXT(iNEXT_data, type = 1, facet.var = "Order.q") + 
+  scale_color_manual(values = iNEXT_color_df$station_colors) + 
+  scale_fill_manual(values = iNEXT_color_df$station_colors) +
+  scale_shape_manual(values = base::rep(17, nsamples(archaeal_rooted_physeq)),
+                     guide = FALSE) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(y = "Effective Number of ASVs", x = "Number of Sequences") 
+
+```
+
+As we increase the q value, we are increasing the weight of the proportion. Dominant species are bring weighted more as `q` goes up
+
+Inverse Simpson least sensitive to sequencing depth. But if we care about rare groups, richness and rarefaction curves
+
+Finally, let’s draw some conclusions from the plot above (we discussed in class & I’ll summarize here):
+
+The best gift of a the Hill Numbers: All three diversity measures are on the same x-axis: The Effective Number of Species or ASVs.
+
+As q increases from 0 to 1 to 2, the abundance of the species is weighted more, so the rarefaction curve plateaus earlier. 
+
+This is important because it indicates that richess is the most sensitive to sequencing depth! 
+
+However, Shannon and even less sensitive is Simpson!
+
+Most of the sample rarefaction curves appear to plateau but we need to look deeper.
+
+There appears to be a sample with much lower richness than the rest of the dataset. Let’s keep our eyes on this sample.
+
+# Manually plot the rarefaction
+
+```{r manual-rarefaction}
+str(iNEXT_data)
+
+iNEXT_manual_df <- 
+  iNEXT_data$iNextEst$size_based %>%
+  dplyr::rename(names = Assemblage) %>%
+  # Fix the samples names 
+  mutate(names = gsub(names, pattern = "[.]", replace = "-"),
+         names = gsub(names, pattern = "X", replace = "")) %>%
+  # join with metadata 
+  left_join(., metadata_df, by = "names") %>%
+  # Add colors to data frame
+  left_join(., data.frame(station_colors = station_colors,
+                          station = names(station_colors)),
+            by = "station") %>%
+  mutate(station = factor(station, levels = c("Copano West", "Copano East", 
+                                              "Mesquite Bay", "Aransas Bay", 
+                                              "Shipping Channel")))
+
+# inspect
+dim(iNEXT_manual_df)
+
+# manually plot rarefaction
+iNEXT_manual_df %>%
+  #filter out rows that are calculated out by sequences so no extrapolated data
+  dplyr::filter(Method == "Rarefaction") %>%
+  # make plot!
+  ggplot(aes(x = m, y = qD, color = station, group = names)) +
+  geom_line() +
+  #facet by station
+  facet_grid(Order.q~station, scales = "free") +
+  scale_color_manual(values = station_colors) +
+  theme_bw() +
+  labs(y = "Effective Number of ASVs", x = "Number of Sequences")+
+  theme(legend.position = "bottom")
+
+```
+
+# Boxplot: Diversity by Station
+
+## Categorical analysis
+
+```{r make-observed-df}
+obs_div_df <-
+  iNEXT_manual_df %>%
+  dplyr:: filter(Method == "Observed")
+
+# check it out
+glimpse(obs_div_df)
+
+# plot box plots by station against diversity
+
+obs_div_df %>%
+  ggplot(aes (x = station, y = qD, fill = station, color = station)) +
+  facet_wrap(.~Order.q, scales = "free_y") +
+  geom_jitter() +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+  scale_color_manual(values = station_colors) +
+  scale_fill_manual(values = station_colors) +
+  labs(y = "Effective number of ASVs") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 30,
+                                   hjust = 1,
+                                   vjust =1))
+
+```
+
+# Continuous Relationships - Salinity (PSU) vs Biodiversity
+
+## Environmental Variables
+
+```{r environ-check}
+# create df of env variables
+env_df <-
+  metadata_df %>%
+  dplyr::select(names, water_tempC:DO_mgL)
+
+# pairwise interactions between env var
+pairs(dplyr::select(env_df, -names), upper.panel = NULL)
+```
+
+## PSU
+
+- practical salinity unit
+- 1 PSU = 1 g salt per 1,000 g water = ppt
+
+0 -> 30 (gradient)
+
+fresh: 0 - 0.5
+brackish: 0.5 - 30
+saline: > 30
+
+How does biodiversity change over the salinity gradient?
+
+```{r plot-div-salinity-lm}
+obs_div_df %>%
+  ggplot(aes(x = salinity_psu, y = qD)) +
+  facet_wrap(.~Order.q, scales = "free") +
+  geom_point(aes(color = station))+
+  scale_color_manual(values = station_colors) +
+  labs(x = "Salinity (PSU)", y = "Effective number of ASVs") +
+  stat_smooth(method = "lm") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
