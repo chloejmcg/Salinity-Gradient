@@ -75,6 +75,7 @@ unrooted_physeq <-
   merge_phyloseq(raw_preprocessed_physeq, unrooted_tree)
 
 unrooted_physeq
+
 ```
 
 ## Plot tree with ggtree
