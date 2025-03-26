@@ -1,4 +1,4 @@
-#How does salt influence microbial communities? 
+# How does salt influence microbial communities? 
 
 Question: 
 
